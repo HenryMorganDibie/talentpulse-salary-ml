@@ -4,106 +4,213 @@ Unit tests for TalentPulse ML pipeline.
 Run with:  pytest tests/ -v
 """
 
-import ast
-import pytest
-import numpy as np
-import pandas as pd
+from __future__ import annotations
 
 import sys
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.features.engineering import (
-    add_log_target,
-    add_seniority_features,
-    add_experience_tier,
-    add_skill_flags,
-    add_remote_flag,
-    get_feature_columns,
-    build_features,
+from src.data.loader import (
+    _parse_skill_string,
+    get_labelled,
+    parse_skills_column,
+    train_test_split_stratified,
 )
-from src.data.loader import parse_skills_column
+from src.features.engineering import (
+    LEVEL_ORDER,
+    SENIOR_LEVELS,
+    TOP_SKILLS,
+    add_experience_tier,
+    add_log_target,
+    add_remote_flag,
+    add_seniority_features,
+    add_skill_flags,
+    build_features,
+    get_feature_columns,
+)
 
 
-# ── Fixtures ────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 @pytest.fixture
-def sample_df():
+def sample_df() -> pd.DataFrame:
     return pd.DataFrame({
-        "job_id": [1, 2, 3, 4],
-        "job_title": ["Data Scientist", "ML Engineer", "Data Analyst", "Lead Engineer"],
-        "company": ["A", "B", "C", "D"],
-        "location": ["New York", "London", "Toronto", "Sydney"],
-        "salary_min": [80000, 90000, 60000, 120000],
-        "salary_max": [100000, 110000, 80000, 160000],
-        "description": ["desc"] * 4,
-        "country": ["USA", "UK", "Canada", "Australia"],
-        "search_keyword": ["data"] * 4,
-        "experience_required": [2, 5, 1, 10],
-        "degree_required": ["Bachelor"] * 4,
+        "job_id":               [1, 2, 3, 4],
+        "job_title":            ["Data Scientist", "ML Engineer", "Data Analyst", "Lead Engineer"],
+        "company":              ["A", "B", "C", "D"],
+        "location":             ["New York", "London", "Toronto", "Sydney"],
+        "salary_min":           [80_000, 90_000, 60_000, 120_000],
+        "salary_max":           [100_000, 110_000, 80_000, 160_000],
+        "description":          ["desc"] * 4,
+        "country":              ["USA", "UK", "Canada", "Australia"],
+        "search_keyword":       ["data"] * 4,
+        "experience_required":  [2, 5, 1, 10],
+        "degree_required":      ["Bachelor"] * 4,
         "skills": [
             "['python', 'sql']",
             "['spark', 'aws', 'python']",
             "['sql', 'excel']",
             "['python', 'aws', 'spark', 'sql']",
         ],
-        "num_skills": [2, 3, 2, 4],
-        "job_level": ["Junior", "Mid", "Junior", "Senior"],
-        "is_remote": [True, False, True, False],
-        "salary_avg": [90000, 100000, 70000, 140000],
-        "has_salary": [True, True, True, True],
+        "num_skills":   [2, 3, 2, 4],
+        "job_level":    ["Junior", "Mid", "Junior", "Senior"],
+        "is_remote":    [True, False, True, False],
+        "salary_avg":   [90_000, 100_000, 70_000, 140_000],
+        "has_salary":   [True, True, True, True],
     })
 
 
-# ── Data loader tests ────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Data loader — _parse_skill_string
+# ---------------------------------------------------------------------------
 
-def test_parse_skills_column(sample_df):
+def test_parse_skill_string_valid():
+    assert _parse_skill_string("['python', 'sql']") == ["python", "sql"]
+
+
+def test_parse_skill_string_malformed():
+    assert _parse_skill_string("not a list") == []
+
+
+def test_parse_skill_string_none():
+    assert _parse_skill_string(None) == []
+
+
+def test_parse_skill_string_non_list_literal():
+    # A valid literal that isn't a list should return []
+    assert _parse_skill_string("{'python'}") == []
+
+
+# ---------------------------------------------------------------------------
+# Data loader — parse_skills_column
+# ---------------------------------------------------------------------------
+
+def test_parse_skills_column_creates_list_column(sample_df):
     df = parse_skills_column(sample_df)
     assert "skills_list" in df.columns
     assert isinstance(df["skills_list"].iloc[0], list)
     assert "python" in df["skills_list"].iloc[0]
 
 
-def test_parse_skills_handles_malformed():
-    df = pd.DataFrame({"skills": ["not a list", None, "['python']"]})
-    result = parse_skills_column(df)
-    assert result["skills_list"].iloc[0] == []
-    assert result["skills_list"].iloc[1] == []
-    assert result["skills_list"].iloc[2] == ["python"]
+def test_parse_skills_column_does_not_mutate_input(sample_df):
+    original_cols = sample_df.columns.tolist()
+    parse_skills_column(sample_df)
+    assert sample_df.columns.tolist() == original_cols
 
 
-# ── Feature engineering tests ────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Data loader — get_labelled
+# ---------------------------------------------------------------------------
 
-def test_add_log_target(sample_df):
+def test_get_labelled_filters_correctly(sample_df):
+    mixed = sample_df.copy()
+    mixed.loc[0, "has_salary"] = False
+    result = get_labelled(mixed)
+    assert len(result) == 3
+    assert result["has_salary"].all()
+
+
+def test_get_labelled_drops_duplicates(sample_df):
+    duped = pd.concat([sample_df, sample_df]).reset_index(drop=True)
+    result = get_labelled(duped)
+    assert len(result) == len(sample_df)
+
+
+# ---------------------------------------------------------------------------
+# Data loader — train_test_split_stratified
+# ---------------------------------------------------------------------------
+
+def test_split_preserves_original_index(sample_df):
+    """Index must NOT be reset — downstream alignment depends on it."""
+    df = parse_skills_column(sample_df)
+    df_feat = build_features(df)
+    train_df, test_df = train_test_split_stratified(df_feat, test_size=0.25, random_state=0)
+    # All indices must be valid labels in the original df_feat
+    assert train_df.index.isin(df_feat.index).all()
+    assert test_df.index.isin(df_feat.index).all()
+
+
+def test_split_sizes(sample_df):
+    df = parse_skills_column(sample_df)
+    df_feat = build_features(df)
+    train_df, test_df = train_test_split_stratified(df_feat, test_size=0.25, random_state=42)
+    assert len(train_df) + len(test_df) == len(df_feat)
+
+
+# ---------------------------------------------------------------------------
+# Feature engineering — log target
+# ---------------------------------------------------------------------------
+
+def test_add_log_target_correctness(sample_df):
     df = add_log_target(sample_df)
     assert "log_salary" in df.columns
     assert np.allclose(df["log_salary"], np.log1p(df["salary_avg"]))
 
 
-def test_log_target_positive(sample_df):
+def test_add_log_target_positive(sample_df):
     df = add_log_target(sample_df)
     assert (df["log_salary"] > 0).all()
 
 
-def test_add_seniority_features(sample_df):
+def test_add_log_target_does_not_mutate(sample_df):
+    add_log_target(sample_df)
+    assert "log_salary" not in sample_df.columns
+
+
+# ---------------------------------------------------------------------------
+# Feature engineering — seniority
+# ---------------------------------------------------------------------------
+
+def test_seniority_senior_is_flagged(sample_df):
     df = add_seniority_features(sample_df)
-    assert "is_senior" in df.columns
     assert df.loc[df["job_level"] == "Senior", "is_senior"].all()
+
+
+def test_seniority_junior_not_flagged(sample_df):
+    df = add_seniority_features(sample_df)
     assert not df.loc[df["job_level"] == "Junior", "is_senior"].any()
 
 
-def test_lead_is_senior():
+def test_seniority_lead_is_flagged():
+    """Lead must map to is_senior=1 — it's in SENIOR_LEVELS."""
     df = pd.DataFrame({"job_level": ["Lead", "Junior", "Mid"]})
     result = add_seniority_features(df)
     assert result.loc[0, "is_senior"] == 1
     assert result.loc[1, "is_senior"] == 0
 
 
-def test_experience_tier_buckets(sample_df):
-    df = add_experience_tier(sample_df)
-    assert df.loc[df["experience_required"] == 2, "experience_tier"].iloc[0] == 0
-    assert df.loc[df["experience_required"] == 5, "experience_tier"].iloc[0] == 1
-    assert df.loc[df["experience_required"] == 10, "experience_tier"].iloc[0] == 3
+def test_senior_levels_constant_matches_implementation():
+    """SENIOR_LEVELS constant must stay in sync with add_seniority_features logic."""
+    for level in SENIOR_LEVELS:
+        df = pd.DataFrame({"job_level": [level]})
+        assert add_seniority_features(df).loc[0, "is_senior"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Feature engineering — experience tier
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("years,expected_tier", [
+    (0,   0),
+    (2,   0),
+    (3,   1),
+    (5,   1),
+    (6,   2),
+    (9,   2),
+    (10,  3),
+    (20,  3),
+])
+def test_experience_tier_boundaries(years, expected_tier):
+    df = pd.DataFrame({"experience_required": [years]})
+    result = add_experience_tier(df)
+    assert result.loc[0, "experience_tier"] == expected_tier
 
 
 def test_experience_tier_nan_defaults_to_1():
@@ -112,12 +219,42 @@ def test_experience_tier_nan_defaults_to_1():
     assert (result["experience_tier"] == 1).all()
 
 
-def test_skill_flags(sample_df):
+# ---------------------------------------------------------------------------
+# Feature engineering — skill flags
+# ---------------------------------------------------------------------------
+
+def test_skill_flags_present(sample_df):
     df = parse_skills_column(sample_df)
     df = add_skill_flags(df)
-    assert "skill_python" in df.columns
+    for sk in TOP_SKILLS:
+        assert f"skill_{sk}" in df.columns
+
+
+def test_skill_flags_correct_values(sample_df):
+    df = parse_skills_column(sample_df)
+    df = add_skill_flags(df)
     assert df.loc[0, "skill_python"] == 1   # row 0 has python
     assert df.loc[2, "skill_spark"] == 0    # row 2 has no spark
+
+
+def test_skill_flags_no_late_binding_bug():
+    """
+    Each skill flag must reflect its own skill — not the last one in the loop.
+    This catches the classic Python late-binding closure trap.
+    """
+    df = pd.DataFrame({
+        "skills_list": [
+            ["python"],
+            ["sql"],
+            ["spark"],
+            ["aws"],
+        ]
+    })
+    result = add_skill_flags(df, skills=["python", "sql", "spark", "aws"])
+    assert result.loc[0, "skill_python"] == 1 and result.loc[0, "skill_sql"] == 0
+    assert result.loc[1, "skill_sql"] == 1    and result.loc[1, "skill_python"] == 0
+    assert result.loc[2, "skill_spark"] == 1  and result.loc[2, "skill_aws"] == 0
+    assert result.loc[3, "skill_aws"] == 1    and result.loc[3, "skill_spark"] == 0
 
 
 def test_skill_flags_require_skills_list(sample_df):
@@ -125,14 +262,23 @@ def test_skill_flags_require_skills_list(sample_df):
         add_skill_flags(sample_df)
 
 
-def test_remote_flag(sample_df):
+# ---------------------------------------------------------------------------
+# Feature engineering — remote flag
+# ---------------------------------------------------------------------------
+
+def test_remote_flag_values(sample_df):
     df = add_remote_flag(sample_df)
     assert "is_remote_int" in df.columns
     assert df.loc[0, "is_remote_int"] == 1
     assert df.loc[1, "is_remote_int"] == 0
 
 
+# ---------------------------------------------------------------------------
+# Feature engineering — leakage guard
+# ---------------------------------------------------------------------------
+
 def test_no_salary_leakage_in_feature_cols(sample_df):
+    """salary_min and salary_max must never appear as model features."""
     df = parse_skills_column(sample_df)
     df_feat = build_features(df)
     cols = get_feature_columns(df_feat)
@@ -140,7 +286,7 @@ def test_no_salary_leakage_in_feature_cols(sample_df):
     assert leaky == [], f"Leaky features detected: {leaky}"
 
 
-def test_feature_cols_all_present(sample_df):
+def test_all_feature_cols_present_in_dataframe(sample_df):
     df = parse_skills_column(sample_df)
     df_feat = build_features(df)
     cols = get_feature_columns(df_feat)
@@ -148,7 +294,7 @@ def test_feature_cols_all_present(sample_df):
     assert missing == [], f"Feature columns missing from DataFrame: {missing}"
 
 
-def test_build_features_returns_log_salary(sample_df):
+def test_build_features_produces_log_salary(sample_df):
     df = parse_skills_column(sample_df)
     df_feat = build_features(df)
     assert "log_salary" in df_feat.columns

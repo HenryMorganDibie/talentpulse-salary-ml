@@ -1,7 +1,9 @@
 """
 Model evaluation, visualisation, and bias diagnostics for TalentPulse.
 
-All plots are written to reports/figures/ and named by step for traceability.
+All plot functions write PNGs to an explicitly-passed `out_dir` — no
+module-level CWD-relative path constants that silently fail when the
+script is not run from the repo root.
 """
 
 from __future__ import annotations
@@ -10,8 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -21,14 +23,19 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 logger = logging.getLogger(__name__)
 
+# Palette used consistently across all comparison plots
+COLORS = ["#4C72B0", "#55A868", "#C44E52", "#8172B2"]
+
 sns.set_theme(style="whitegrid", palette="muted")
 plt.rcParams.update({"font.family": "DejaVu Sans", "axes.titlesize": 13, "axes.labelsize": 11})
 
-FIGURE_DIR = Path("reports/figures")
-COLORS = ["#4C72B0", "#55A868", "#C44E52", "#8172B2"]
 
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
-def _savefig(fig: plt.Figure, name: str, out_dir: Path = FIGURE_DIR) -> None:
+def _savefig(fig: plt.Figure, name: str, out_dir: Path) -> None:
+    """Save and close a figure. Creates out_dir if it does not exist."""
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / name
     fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -40,7 +47,8 @@ def _savefig(fig: plt.Figure, name: str, out_dir: Path = FIGURE_DIR) -> None:
 # EDA plots
 # ---------------------------------------------------------------------------
 
-def plot_salary_distribution(salary: pd.Series, out_dir: Path = FIGURE_DIR) -> None:
+def plot_salary_distribution(salary: pd.Series, out_dir: Path) -> None:
+    """Histogram of raw salary vs log1p-transformed salary side by side."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     fig.suptitle("EDA — Salary Distribution & Log-Transform", fontsize=14, fontweight="bold")
 
@@ -58,8 +66,11 @@ def plot_salary_distribution(salary: pd.Series, out_dir: Path = FIGURE_DIR) -> N
     _savefig(fig, "fig1_salary_distribution.png", out_dir)
 
 
-def plot_salary_by_group(df: pd.DataFrame, out_dir: Path = FIGURE_DIR) -> None:
-    level_order = [l for l in ["Junior", "Mid", "Senior", "Lead"] if l in df["job_level"].unique()]
+def plot_salary_by_group(df: pd.DataFrame, out_dir: Path) -> None:
+    """Boxplots of salary by job level and by country."""
+    from src.features.engineering import LEVEL_ORDER
+    level_order = [l for l in LEVEL_ORDER if l in df["job_level"].unique()]
+
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle("EDA — Salary by Job Level & Country", fontsize=14, fontweight="bold")
 
@@ -75,18 +86,25 @@ def plot_salary_by_group(df: pd.DataFrame, out_dir: Path = FIGURE_DIR) -> None:
 
 
 def plot_correlation_heatmap(df_ohe: pd.DataFrame, feature_cols: List[str],
-                              out_dir: Path = FIGURE_DIR) -> None:
-    num_cols = [c for c in feature_cols if c in df_ohe.columns] + ["salary_avg"]
-    num_cols = [c for c in num_cols if c in df_ohe.columns]
+                              out_dir: Path) -> None:
+    """Pearson correlation heatmap of engineered features vs salary_avg."""
+    # Include only numeric base features + target; OHE dummies clutter the heatmap
+    base_and_target = [
+        c for c in feature_cols
+        if not c.startswith(("job_level_", "country_"))
+    ] + ["salary_avg"]
+    cols = [c for c in base_and_target if c in df_ohe.columns]
+
     fig, ax = plt.subplots(figsize=(10, 8))
-    sns.heatmap(df_ohe[num_cols].corr(), annot=True, fmt=".2f",
+    sns.heatmap(df_ohe[cols].corr(), annot=True, fmt=".2f",
                 cmap="RdYlGn", center=0, ax=ax, square=True, linewidths=0.4)
-    ax.set_title("EDA — Pearson Correlation Matrix", fontsize=13, fontweight="bold")
+    ax.set_title("EDA — Pearson Correlation Matrix (base features)", fontsize=13, fontweight="bold")
     plt.tight_layout()
     _savefig(fig, "fig3_correlation_heatmap.png", out_dir)
 
 
-def plot_qq(salary: pd.Series, out_dir: Path = FIGURE_DIR) -> None:
+def plot_qq(salary: pd.Series, out_dir: Path) -> None:
+    """Q-Q plots comparing raw salary and log1p(salary) against a normal distribution."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     fig.suptitle("Feature Engineering — Q-Q Plots: Raw vs Log-Transformed Salary",
                  fontsize=13, fontweight="bold")
@@ -102,8 +120,13 @@ def plot_qq(salary: pd.Series, out_dir: Path = FIGURE_DIR) -> None:
 # Hyperparameter tuning plots
 # ---------------------------------------------------------------------------
 
-def plot_ridge_alpha_curve(alphas: np.ndarray, cv_scores: List[float],
-                            best_alpha: float, out_dir: Path = FIGURE_DIR) -> None:
+def plot_ridge_alpha_curve(
+    alphas: np.ndarray,
+    cv_scores: List[float],
+    best_alpha: float,
+    out_dir: Path,
+) -> None:
+    """Log-scale plot of Ridge CV MAE vs regularisation strength."""
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.semilogx(alphas, cv_scores, "o-", color="#55A868", lw=2)
     ax.axvline(best_alpha, color="red", linestyle="--", lw=1.5,
@@ -117,19 +140,27 @@ def plot_ridge_alpha_curve(alphas: np.ndarray, cv_scores: List[float],
     _savefig(fig, "fig9_ridge_alpha.png", out_dir)
 
 
-def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path = FIGURE_DIR) -> None:
-    overfit_depth = None
-    for _, row in curve_df.iterrows():
-        if row["train_r2"] - row["test_r2"] > 0.05:
-            overfit_depth = int(row["max_depth"])
-            break
+def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path) -> Optional[int]:
+    """
+    Plot RF train vs test R² across depths 3–20.
+
+    Returns the first depth at which the train/test gap exceeds 0.05,
+    or None if no such depth is found.
+    """
+    gap = curve_df["train_r2"] - curve_df["test_r2"]
+    overfit_mask = gap > 0.05
+    overfit_depth: Optional[int] = (
+        int(curve_df.loc[overfit_mask.idxmax(), "max_depth"])
+        if overfit_mask.any()
+        else None
+    )
 
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(curve_df["max_depth"], curve_df["train_r2"], "o-",
             color="#4C72B0", lw=2, label="Train R²")
     ax.plot(curve_df["max_depth"], curve_df["test_r2"], "s-",
             color="#C44E52", lw=2, label="Test R²")
-    if overfit_depth:
+    if overfit_depth is not None:
         ax.axvline(overfit_depth, color="grey", linestyle=":", lw=1.5,
                    label=f"Overfitting ≈ depth {overfit_depth}")
     ax.fill_between(curve_df["max_depth"], curve_df["train_r2"],
@@ -140,6 +171,7 @@ def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path = FIGURE_DIR) -> N
     ax.legend(); ax.grid(alpha=0.3)
     plt.tight_layout()
     _savefig(fig, "fig7_overfitting.png", out_dir)
+
     return overfit_depth
 
 
@@ -152,18 +184,23 @@ def score_model(
     X_test: pd.DataFrame,
     y_test: pd.Series,
     name: str,
-) -> Dict[str, float]:
-    """Compute MAE, RMSE, R² on original salary scale (inverse log1p)."""
+) -> Dict[str, Any]:
+    """
+    Compute MAE, RMSE, R² on the original salary scale (inverse of log1p).
+
+    Note: predictions are NOT stored in the returned dict to keep it
+    JSON-serialisable. Callers that need predictions should call
+    model.predict(X_test) directly.
+    """
     p_log = model.predict(X_test)
     a_log = y_test.values
     p_sal = np.expm1(p_log)
     a_sal = np.expm1(a_log)
     return {
-        "name":  name,
-        "MAE":   float(mean_absolute_error(a_sal, p_sal)),
-        "RMSE":  float(np.sqrt(mean_squared_error(a_sal, p_sal))),
-        "R²":    float(r2_score(a_log, p_log)),
-        "preds": p_log,
+        "name": name,
+        "MAE":  float(mean_absolute_error(a_sal, p_sal)),
+        "RMSE": float(np.sqrt(mean_squared_error(a_sal, p_sal))),
+        "R²":   float(r2_score(a_log, p_log)),
     }
 
 
@@ -171,12 +208,15 @@ def score_all(
     fitted_models: Dict[str, Any],
     X_test: pd.DataFrame,
     y_test: pd.Series,
-) -> Dict[str, Dict]:
-    results = {name: score_model(m, X_test, y_test, name)
-               for name, m in fitted_models.items()}
-    logger.info("\n--- Model Scorecard ---")
+) -> Dict[str, Dict[str, Any]]:
+    """Score all fitted models and log a formatted scorecard."""
+    results = {
+        name: score_model(m, X_test, y_test, name)
+        for name, m in fitted_models.items()
+    }
+    logger.info("--- Model Scorecard ---")
     for n, r in results.items():
-        logger.info("  %-22s MAE $%,.0f  RMSE $%,.0f  R² %.4f",
+        logger.info("  %-22s  MAE $%,.0f  RMSE $%,.0f  R² %.4f",
                     n, r["MAE"], r["RMSE"], r["R²"])
     return results
 
@@ -185,8 +225,14 @@ def score_all(
 # Evaluation plots
 # ---------------------------------------------------------------------------
 
-def plot_model_comparison(results: Dict, models_plot: List[str],
-                           out_dir: Path = FIGURE_DIR) -> None:
+def plot_model_comparison(
+    results: Dict[str, Dict],
+    models_plot: List[str],
+    out_dir: Path,
+    legacy_mae: float,
+    target_mae: float,
+) -> None:
+    """Bar chart comparison of MAE, RMSE, R² across all models."""
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
     fig.suptitle("Model Evaluation — MAE, RMSE, R² Across All Models",
                  fontsize=14, fontweight="bold")
@@ -205,8 +251,10 @@ def plot_model_comparison(results: Dict, models_plot: List[str],
                     lbl, ha="center", va="bottom", fontsize=8, fontweight="bold")
         ax.set_xticklabels(models_plot, rotation=18, ha="right", fontsize=8)
         if metric == "MAE":
-            ax.axhline(8000,  color="red",  linestyle="--", lw=1.5, label="$8k target")
-            ax.axhline(18500, color="grey", linestyle=":",  lw=1.2, label="Legacy $18.5k")
+            ax.axhline(target_mae, color="red",  linestyle="--", lw=1.5,
+                       label=f"${target_mae:,.0f} target")
+            ax.axhline(legacy_mae, color="grey", linestyle=":",  lw=1.2,
+                       label=f"Legacy ${legacy_mae:,.0f}")
             ax.legend(fontsize=8)
 
     plt.tight_layout()
@@ -214,16 +262,21 @@ def plot_model_comparison(results: Dict, models_plot: List[str],
 
 
 def plot_feature_importances(
-    model: Any, feature_cols: List[str], model_name: str,
-    out_dir: Path = FIGURE_DIR,
+    model: Any,
+    feature_cols: List[str],
+    model_name: str,
+    out_dir: Path,
 ) -> None:
+    """Horizontal bar chart of top-15 feature importances."""
     fi = (
         pd.Series(model.feature_importances_, index=feature_cols)
         .sort_values(ascending=False)
         .head(15)
     )
-    pal = ["#C44E52" if ("level" in c or "senior" in c) else "#4C72B0"
-           for c in fi.index[::-1]]
+    pal = [
+        "#C44E52" if ("level" in c or "senior" in c) else "#4C72B0"
+        for c in fi.index[::-1]
+    ]
     fig, ax = plt.subplots(figsize=(10, 6))
     fi.sort_values().plot.barh(ax=ax, color=pal, edgecolor="white")
     ax.set_title(f"Model Evaluation — Top-15 Feature Importances ({model_name})",
@@ -237,10 +290,10 @@ def plot_feature_importances(
     _savefig(fig, "fig5_feature_importances.png", out_dir)
 
 
-def plot_residuals(df_test: pd.DataFrame, best_name: str,
-                   out_dir: Path = FIGURE_DIR) -> None:
-    lo = [l for l in ["Junior", "Mid", "Senior", "Lead"]
-          if l in df_test["level_name"].unique()]
+def plot_residuals(df_test: pd.DataFrame, best_name: str, out_dir: Path) -> None:
+    """Residual boxplots segmented by country and by job level."""
+    from src.features.engineering import LEVEL_ORDER
+    lo = [l for l in LEVEL_ORDER if l in df_test["level_name"].unique()]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(
@@ -263,8 +316,8 @@ def plot_residuals(df_test: pd.DataFrame, best_name: str,
     _savefig(fig, "fig6_residuals.png", out_dir)
 
 
-def plot_segment_comparison(df_test: pd.DataFrame,
-                             out_dir: Path = FIGURE_DIR) -> None:
+def plot_segment_comparison(df_test: pd.DataFrame, out_dir: Path) -> None:
+    """Actual vs predicted scatter + residual boxplot split by Premium/Standard."""
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     fig.suptitle("Segment Analysis — Premium vs Standard Role Accuracy",
                  fontsize=13, fontweight="bold")
@@ -296,15 +349,62 @@ def plot_segment_comparison(df_test: pd.DataFrame,
 # ---------------------------------------------------------------------------
 
 def compute_vif(X: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
-    """Compute Variance Inflation Factor for multicollinearity diagnosis."""
+    """
+    Compute Variance Inflation Factor for multicollinearity diagnosis.
+    Only pass base numeric features — binary OHE dummies will inflate VIF
+    by design and should be excluded from this check.
+    """
     X_sub = X[cols].fillna(0)
     vif_data = pd.DataFrame({
         "Feature": cols,
         "VIF": [variance_inflation_factor(X_sub.values, i) for i in range(len(cols))],
-    }).sort_values("VIF", ascending=False)
+    }).sort_values("VIF", ascending=False).reset_index(drop=True)
+
     high = vif_data[vif_data["VIF"] > 10]["Feature"].tolist()
     if high:
         logger.warning("Features with VIF > 10 (multicollinearity risk): %s", high)
     else:
         logger.info("VIF check passed — no features exceed VIF=10")
     return vif_data
+
+
+# ---------------------------------------------------------------------------
+# Residuals frame construction
+# ---------------------------------------------------------------------------
+
+def build_residuals_frame(
+    df_ohe: pd.DataFrame,
+    test_index: pd.Index,
+    best_preds: np.ndarray,
+    y_test: pd.Series,
+) -> pd.DataFrame:
+    """
+    Assemble test-set residuals with human-readable country / level / segment labels.
+
+    Parameters
+    ----------
+    df_ohe      : full engineered DataFrame (original index intact)
+    test_index  : index labels of the test rows in df_ohe
+    best_preds  : model predictions aligned to test_index order
+    y_test      : actual log-salary values aligned to test_index
+    """
+    df_t = df_ohe.loc[test_index].copy()
+    df_t["pred_log"]   = best_preds
+    df_t["pred_sal"]   = np.expm1(df_t["pred_log"])
+    df_t["actual_sal"] = np.expm1(y_test.values)
+    df_t["residual"]   = df_t["pred_sal"] - df_t["actual_sal"]
+
+    cc = [c for c in df_t.columns if c.startswith("country_")]
+    lc = [c for c in df_t.columns if c.startswith("job_level_")]
+    df_t["country_name"] = (
+        df_t[cc].idxmax(axis=1).str.replace("country_", "", regex=False)
+        if cc else "Unknown"
+    )
+    df_t["level_name"] = (
+        df_t[lc].idxmax(axis=1).str.replace("job_level_", "", regex=False)
+        if lc else "Unknown"
+    )
+    df_t["segment"] = df_t["is_senior"].map(
+        {1: "Premium (Senior/Lead)", 0: "Standard (Junior/Mid)"}
+    )
+    return df_t
