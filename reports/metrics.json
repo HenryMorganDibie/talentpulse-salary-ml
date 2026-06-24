@@ -1,0 +1,54 @@
+{
+  "best_model": "Random Forest",
+  "results": {
+    "Linear Regression": {
+      "MAE": 42831.71398272708,
+      "RMSE": 140653.15853636616,
+      "R2": 0.6216580194970542
+    },
+    "Ridge Regression": {
+      "MAE": 42834.04274030023,
+      "RMSE": 140671.6484018799,
+      "R2": 0.6216599148535393
+    },
+    "Random Forest": {
+      "MAE": 42064.37774267849,
+      "RMSE": 142763.51531740424,
+      "R2": 0.6104493375492475
+    },
+    "Gradient Boosting": {
+      "MAE": 43804.43356057858,
+      "RMSE": 149747.47247661362,
+      "R2": 0.6028638281281682
+    }
+  },
+  "bias_country": {
+    "Australia": -46607.586905877586,
+    "Canada": -19745.5324957827,
+    "India": -522681.8064316084,
+    "UK": -5440.83605811318,
+    "USA": -10969.257096430425
+  },
+  "bias_level": {
+    "Junior": -3768.8918488839286,
+    "Lead": -11142.180077660361,
+    "Mid": -22976.757763224818,
+    "Senior": -12305.064122923142
+  },
+  "seg_mae": {
+    "Premium (Senior/Lead)": 27576.19012474968,
+    "Standard (Junior/Mid)": 44804.37177404844
+  },
+  "rf_best_params": {
+    "max_depth": 12,
+    "n_estimators": 200
+  },
+  "gb_best_params": {
+    "learning_rate": 0.05,
+    "max_depth": 4,
+    "n_estimators": 200
+  },
+  "best_alpha": 0.01,
+  "vif_high": [],
+  "overfit_depth": null
+}
