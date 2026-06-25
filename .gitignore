@@ -1,10 +1,51 @@
+# Python
 __pycache__/
-*.pyc
-*.pkl
-.DS_Store
-.env
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
 *.egg-info/
 dist/
-.pytest_cache/
-models/
+build/
+*.so
 
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# ML artefacts (generated — do not commit)
+models/*.pkl
+models/*.joblib
+models/*.onnx
+
+# Generated outputs (reproducible from pipeline run)
+reports/figures/*.png
+reports/metrics.json
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Ruff cache
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Data — raw data is committed; processed outputs are not
+data/processed/
