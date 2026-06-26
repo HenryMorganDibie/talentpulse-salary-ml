@@ -24,7 +24,6 @@ from src.evaluation.metrics import (
     score_model,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -32,8 +31,8 @@ from src.evaluation.metrics import (
 @pytest.fixture
 def dummy_model():
     """A trivially fitted model that always predicts log1p(50_000)."""
-    from sklearn.dummy import DummyRegressor
     import numpy as np
+    from sklearn.dummy import DummyRegressor
     m = DummyRegressor(strategy="constant", constant=np.log1p(50_000))
     m.fit([[0]], [np.log1p(50_000)])
     return m
