@@ -18,9 +18,8 @@ Usage
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -35,16 +34,16 @@ _DEFAULT_CONFIG = Path(__file__).parent.parent / "configs" / "pipeline.yaml"
 @dataclass
 class DataConfig:
     raw_path: str
-    expected_countries: List[str]
-    expected_job_levels: List[str]
-    senior_levels: List[str]
+    expected_countries: list[str]
+    expected_job_levels: list[str]
+    senior_levels: list[str]
 
 
 @dataclass
 class FeaturesConfig:
-    top_skills: List[str]
-    ohe_columns: List[str]
-    experience_tier_breaks: List[int]
+    top_skills: list[str]
+    ohe_columns: list[str]
+    experience_tier_breaks: list[int]
 
 
 @dataclass
@@ -64,14 +63,14 @@ class RidgeConfig:
 
 @dataclass
 class RandomForestConfig:
-    param_grid: Dict
+    param_grid: dict
     cv_folds: int
     depth_curve_n_estimators: int
 
 
 @dataclass
 class GradientBoostingConfig:
-    param_grid: Dict
+    param_grid: dict
     cv_folds: int
 
 

@@ -9,14 +9,13 @@ from __future__ import annotations
 import ast
 import logging
 from pathlib import Path
-from typing import List, Tuple
 
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_COLUMNS: List[str] = [
+REQUIRED_COLUMNS: list[str] = [
     "job_id", "job_title", "company", "location", "salary_min", "salary_max",
     "description", "country", "search_keyword", "experience_required",
     "degree_required", "skills", "num_skills", "job_level", "is_remote",
@@ -81,7 +80,7 @@ def get_labelled(df: pd.DataFrame) -> pd.DataFrame:
     return labelled
 
 
-def _parse_skill_string(s: object) -> List[str]:
+def _parse_skill_string(s: object) -> list[str]:
     """Safely parse a stringified list of skills into a Python list."""
     try:
         result = ast.literal_eval(str(s))
@@ -101,7 +100,7 @@ def train_test_split_stratified(
     df: pd.DataFrame,
     test_size: float = 0.2,
     random_state: int = 42,
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Stratified 80/20 split on job_level to ensure balanced seniority
     representation in both partitions.

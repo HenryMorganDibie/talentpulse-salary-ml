@@ -32,20 +32,17 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from sklearn.metrics import mean_absolute_error
 
 # Ensure src is importable when run from repo root
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.data.loader import (
-    load_raw,
     get_labelled,
+    load_raw,
     parse_skills_column,
     train_test_split_stratified,
 )
-from src.features.engineering import build_features, get_feature_columns
-from src.models.train import tune_ridge_alpha, train_all, rf_depth_curve, save_model
 from src.evaluation.metrics import (
     build_residuals_frame,
     compute_vif,
@@ -61,6 +58,8 @@ from src.evaluation.metrics import (
     plot_segment_comparison,
     score_all,
 )
+from src.features.engineering import build_features, get_feature_columns
+from src.models.train import rf_depth_curve, save_model, train_all, tune_ridge_alpha
 
 logging.basicConfig(
     level=logging.INFO,

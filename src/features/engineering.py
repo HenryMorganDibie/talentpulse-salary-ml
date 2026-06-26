@@ -12,7 +12,6 @@ Design principles
 from __future__ import annotations
 
 import logging
-from typing import List
 
 import numpy as np
 import pandas as pd
@@ -20,13 +19,13 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 # Skills to create binary flag features for
-TOP_SKILLS: List[str] = ["python", "sql", "spark", "aws"]
+TOP_SKILLS: list[str] = ["python", "sql", "spark", "aws"]
 
 # Ordered seniority levels (subset that maps to is_senior=1)
-SENIOR_LEVELS: List[str] = ["Senior", "Lead"]
+SENIOR_LEVELS: list[str] = ["Senior", "Lead"]
 
 # Canonical level ordering — kept here so callers don't redefine it
-LEVEL_ORDER: List[str] = ["Junior", "Mid", "Senior", "Lead"]
+LEVEL_ORDER: list[str] = ["Junior", "Mid", "Senior", "Lead"]
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@ def _make_skill_checker(skill: str):
     return _check
 
 
-def add_skill_flags(df: pd.DataFrame, skills: List[str] = TOP_SKILLS) -> pd.DataFrame:
+def add_skill_flags(df: pd.DataFrame, skills: list[str] = TOP_SKILLS) -> pd.DataFrame:
     """
     Binary flag for each high-value skill (Python, SQL, Spark, AWS).
     Requires the 'skills_list' column produced by parse_skills_column().
@@ -137,7 +136,7 @@ def add_remote_flag(df: pd.DataFrame) -> pd.DataFrame:
 
 def one_hot_encode(
     df: pd.DataFrame,
-    columns: List[str] = ("job_level", "country"),
+    columns: list[str] = ("job_level", "country"),
 ) -> pd.DataFrame:
     """One-hot encode categorical columns. All categories are preserved (drop_first=False)."""
     return pd.get_dummies(df, columns=list(columns), drop_first=False)
@@ -167,7 +166,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_feature_columns(df: pd.DataFrame) -> List[str]:
+def get_feature_columns(df: pd.DataFrame) -> list[str]:
     """
     Return the ordered list of model input features from an engineered DataFrame.
 
