@@ -87,3 +87,13 @@ omit   = ["*/tests/*", "*/__init__.py"]
 show_missing = true
 skip_covered = false
 fail_under   = 80
+exclude_lines = [
+    # Standard pragma
+    "pragma: no cover",
+    # Plot functions — require a display, tested via integration run not unit tests
+    "def plot_",
+    "_savefig",
+    # Abstract / unreachable
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
