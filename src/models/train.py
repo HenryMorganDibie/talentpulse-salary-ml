@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -37,9 +37,9 @@ _DEPTH_CURVE_N_ESTIMATORS = 100
 def tune_ridge_alpha(
     X_train: pd.DataFrame,
     y_train: pd.Series,
-    alphas: Optional[np.ndarray] = None,
+    alphas: np.ndarray | None = None,
     cv: int = 5,
-) -> Tuple[float, List[Tuple[float, float]]]:
+) -> tuple[float, list[tuple[float, float]]]:
     """
     Select optimal L2 regularisation strength for Ridge via cross-validated MAE.
     Searches log-space from 1e-2 to 1e4 by default.
@@ -61,14 +61,14 @@ def tune_ridge_alpha(
     ]
     best_alpha = float(alphas[np.argmin(cv_scores)])
     logger.info("Ridge CV — best alpha: %.4f  (CV MAE: %.5f)", best_alpha, min(cv_scores))
-    return best_alpha, list(zip(alphas.tolist(), cv_scores))
+    return best_alpha, list(zip(alphas.tolist(), cv_scores, strict=True))
 
 
 # ---------------------------------------------------------------------------
 # Model registry
 # ---------------------------------------------------------------------------
 
-def build_model_registry(best_alpha: float) -> Dict[str, Any]:
+def build_model_registry(best_alpha: float) -> dict[str, Any]:
     """Return a dict of untrained estimators keyed by model name."""
     return {
         "Linear Regression": LinearRegression(),
@@ -107,7 +107,7 @@ def train_all(
     X_train: pd.DataFrame,
     y_train: pd.Series,
     best_alpha: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Fit all models in the registry on training data.
 
@@ -116,7 +116,7 @@ def train_all(
     dict mapping model name → fitted estimator (GridSearchCV or base estimator)
     """
     registry = build_model_registry(best_alpha)
-    fitted: Dict[str, Any] = {}
+    fitted: dict[str, Any] = {}
 
     for name, estimator in registry.items():
         logger.info("Training: %s", name)
@@ -137,7 +137,7 @@ def rf_depth_curve(
     y_train: pd.Series,
     X_test: pd.DataFrame,
     y_test: pd.Series,
-    depths: Optional[List[int]] = None,
+    depths: list[int] | None = None,
 ) -> pd.DataFrame:
     """
     Train a Random Forest at each depth in `depths` and record train/test R².

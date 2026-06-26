@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -53,14 +53,19 @@ def plot_salary_distribution(salary: pd.Series, out_dir: Path) -> None:
     fig.suptitle("EDA — Salary Distribution & Log-Transform", fontsize=14, fontweight="bold")
 
     axes[0].hist(salary, bins=60, color="#4C72B0", edgecolor="white", alpha=0.85)
-    axes[0].axvline(salary.median(), color="red", linestyle="--", lw=1.8,
-                    label=f"Median ${salary.median():,.0f}")
+    axes[0].axvline(
+        salary.median(), color="red", linestyle="--", lw=1.8,
+        label=f"Median ${salary.median():,.0f}",
+    )
     axes[0].set_title("salary_avg — Raw")
-    axes[0].set_xlabel("Salary (USD)"); axes[0].set_ylabel("Count"); axes[0].legend()
+    axes[0].set_xlabel("Salary (USD)")
+    axes[0].set_ylabel("Count")
+    axes[0].legend()
 
     axes[1].hist(np.log1p(salary), bins=60, color="#55A868", edgecolor="white", alpha=0.85)
     axes[1].set_title("log1p(salary_avg) — After Transform")
-    axes[1].set_xlabel("log(Salary + 1)"); axes[1].set_ylabel("Count")
+    axes[1].set_xlabel("log(Salary + 1)")
+    axes[1].set_ylabel("Count")
 
     plt.tight_layout()
     _savefig(fig, "fig1_salary_distribution.png", out_dir)
@@ -68,25 +73,32 @@ def plot_salary_distribution(salary: pd.Series, out_dir: Path) -> None:
 
 def plot_salary_by_group(df: pd.DataFrame, out_dir: Path) -> None:
     """Boxplots of salary by job level and by country."""
-    from src.features.engineering import LEVEL_ORDER
-    level_order = [l for l in LEVEL_ORDER if l in df["job_level"].unique()]
+    from src.features.engineering import LEVEL_ORDER  # noqa: PLC0415
+    level_order = [lvl for lvl in LEVEL_ORDER if lvl in df["job_level"].unique()]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle("EDA — Salary by Job Level & Country", fontsize=14, fontweight="bold")
 
     sns.boxplot(data=df, x="job_level", y="salary_avg", order=level_order,
                 ax=axes[0], palette="Blues_d")
-    axes[0].set_title("By Job Level"); axes[0].set_xlabel(""); axes[0].set_ylabel("Salary (USD)")
+    axes[0].set_title("By Job Level")
+    axes[0].set_xlabel("")
+    axes[0].set_ylabel("Salary (USD)")
 
     sns.boxplot(data=df, x="country", y="salary_avg", ax=axes[1], palette="Oranges_d")
-    axes[1].set_title("By Country"); axes[1].set_xlabel(""); axes[1].set_ylabel("Salary (USD)")
+    axes[1].set_title("By Country")
+    axes[1].set_xlabel("")
+    axes[1].set_ylabel("Salary (USD)")
 
     plt.tight_layout()
     _savefig(fig, "fig2_salary_by_group.png", out_dir)
 
 
-def plot_correlation_heatmap(df_ohe: pd.DataFrame, feature_cols: List[str],
-                              out_dir: Path) -> None:
+def plot_correlation_heatmap(
+    df_ohe: pd.DataFrame,
+    feature_cols: list[str],
+    out_dir: Path,
+) -> None:
     """Pearson correlation heatmap of engineered features vs salary_avg."""
     # Include only numeric base features + target; OHE dummies clutter the heatmap
     base_and_target = [
@@ -122,7 +134,7 @@ def plot_qq(salary: pd.Series, out_dir: Path) -> None:
 
 def plot_ridge_alpha_curve(
     alphas: np.ndarray,
-    cv_scores: List[float],
+    cv_scores: list[float],
     best_alpha: float,
     out_dir: Path,
 ) -> None:
@@ -135,12 +147,13 @@ def plot_ridge_alpha_curve(
     ax.set_ylabel("5-Fold CV MAE (log-salary units)")
     ax.set_title("Hyperparameter Tuning — Ridge Regression: CV Error vs Alpha",
                  fontsize=13, fontweight="bold")
-    ax.legend(); ax.grid(alpha=0.3)
+    ax.legend()
+    ax.grid(alpha=0.3)
     plt.tight_layout()
     _savefig(fig, "fig9_ridge_alpha.png", out_dir)
 
 
-def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path) -> Optional[int]:
+def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path) -> int | None:
     """
     Plot RF train vs test R² across depths 3–20.
 
@@ -149,7 +162,7 @@ def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path) -> Optional[int]:
     """
     gap = curve_df["train_r2"] - curve_df["test_r2"]
     overfit_mask = gap > 0.05
-    overfit_depth: Optional[int] = (
+    overfit_depth: int | None = (
         int(curve_df.loc[overfit_mask.idxmax(), "max_depth"])
         if overfit_mask.any()
         else None
@@ -165,10 +178,12 @@ def plot_rf_depth_curve(curve_df: pd.DataFrame, out_dir: Path) -> Optional[int]:
                    label=f"Overfitting ≈ depth {overfit_depth}")
     ax.fill_between(curve_df["max_depth"], curve_df["train_r2"],
                     curve_df["test_r2"], alpha=0.08, color="red")
-    ax.set_xlabel("max_depth"); ax.set_ylabel("R²")
+    ax.set_xlabel("max_depth")
+    ax.set_ylabel("R²")
     ax.set_title("Hyperparameter Tuning — RF Train vs Test R² by Depth",
                  fontsize=13, fontweight="bold")
-    ax.legend(); ax.grid(alpha=0.3)
+    ax.legend()
+    ax.grid(alpha=0.3)
     plt.tight_layout()
     _savefig(fig, "fig7_overfitting.png", out_dir)
 
@@ -184,7 +199,7 @@ def score_model(
     X_test: pd.DataFrame,
     y_test: pd.Series,
     name: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Compute MAE, RMSE, R² on the original salary scale (inverse of log1p).
 
@@ -205,10 +220,10 @@ def score_model(
 
 
 def score_all(
-    fitted_models: Dict[str, Any],
+    fitted_models: dict[str, Any],
     X_test: pd.DataFrame,
     y_test: pd.Series,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Score all fitted models and log a formatted scorecard."""
     results = {
         name: score_model(m, X_test, y_test, name)
@@ -226,8 +241,8 @@ def score_all(
 # ---------------------------------------------------------------------------
 
 def plot_model_comparison(
-    results: Dict[str, Dict],
-    models_plot: List[str],
+    results: dict[str, dict],
+    models_plot: list[str],
     out_dir: Path,
     legacy_mae: float,
     target_mae: float,
@@ -237,15 +252,17 @@ def plot_model_comparison(
     fig.suptitle("Model Evaluation — MAE, RMSE, R² Across All Models",
                  fontsize=14, fontweight="bold")
 
-    for ax, metric, title in zip(
-        axes,
-        ["MAE", "RMSE", "R²"],
-        ["MAE (USD) — lower better", "RMSE (USD) — lower better", "R² — higher better"],
-    ):
+    metrics_cfg = [
+        ("MAE",  "MAE (USD) — lower better"),
+        ("RMSE", "RMSE (USD) — lower better"),
+        ("R²",   "R² — higher better"),
+    ]
+    for ax, (metric, title) in zip(axes, metrics_cfg, strict=True):
         vals = [results[m][metric] for m in models_plot]
         bars = ax.bar(models_plot, vals, color=COLORS, width=0.55, edgecolor="white")
-        ax.set_title(title); ax.set_ylabel(metric)
-        for bar, v in zip(bars, vals):
+        ax.set_title(title)
+        ax.set_ylabel(metric)
+        for bar, v in zip(bars, vals, strict=True):
             lbl = f"${v:,.0f}" if metric != "R²" else f"{v:.3f}"
             ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() * 1.01,
                     lbl, ha="center", va="bottom", fontsize=8, fontweight="bold")
@@ -263,7 +280,7 @@ def plot_model_comparison(
 
 def plot_feature_importances(
     model: Any,
-    feature_cols: List[str],
+    feature_cols: list[str],
     model_name: str,
     out_dir: Path,
 ) -> None:
@@ -292,8 +309,8 @@ def plot_feature_importances(
 
 def plot_residuals(df_test: pd.DataFrame, best_name: str, out_dir: Path) -> None:
     """Residual boxplots segmented by country and by job level."""
-    from src.features.engineering import LEVEL_ORDER
-    lo = [l for l in LEVEL_ORDER if l in df_test["level_name"].unique()]
+    from src.features.engineering import LEVEL_ORDER  # noqa: PLC0415
+    lo = [lvl for lvl in LEVEL_ORDER if lvl in df_test["level_name"].unique()]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(
@@ -303,13 +320,15 @@ def plot_residuals(df_test: pd.DataFrame, best_name: str, out_dir: Path) -> None
     sns.boxplot(data=df_test, x="country_name", y="residual",
                 ax=axes[0], palette="Blues_d")
     axes[0].axhline(0, color="red", linestyle="--", lw=1.5)
-    axes[0].set_title("By Country"); axes[0].set_xlabel("")
+    axes[0].set_title("By Country")
+    axes[0].set_xlabel("")
     axes[0].set_ylabel("Predicted − Actual Salary (USD)")
 
     sns.boxplot(data=df_test, x="level_name", y="residual",
                 order=lo, ax=axes[1], palette="Oranges_d")
     axes[1].axhline(0, color="red", linestyle="--", lw=1.5)
-    axes[1].set_title("By Job Level"); axes[1].set_xlabel("")
+    axes[1].set_title("By Job Level")
+    axes[1].set_xlabel("")
     axes[1].set_ylabel("Predicted − Actual Salary (USD)")
 
     plt.tight_layout()
@@ -330,14 +349,17 @@ def plot_segment_comparison(df_test: pd.DataFrame, out_dir: Path) -> None:
 
     mn, mx = df_test["actual_sal"].min(), df_test["actual_sal"].max()
     axes[0].plot([mn, mx], [mn, mx], "k--", lw=1.2, label="Perfect prediction")
-    axes[0].set_xlabel("Actual (USD)"); axes[0].set_ylabel("Predicted (USD)")
-    axes[0].set_title("Actual vs Predicted"); axes[0].legend(fontsize=8)
+    axes[0].set_xlabel("Actual (USD)")
+    axes[0].set_ylabel("Predicted (USD)")
+    axes[0].set_title("Actual vs Predicted")
+    axes[0].legend(fontsize=8)
 
     sns.boxplot(data=df_test, x="segment", y="residual",
                 palette=["#4C72B0", "#C44E52"], ax=axes[1])
     axes[1].axhline(0, color="red", linestyle="--", lw=1.5)
     axes[1].set_title("Residuals by Segment")
-    axes[1].set_xlabel(""); axes[1].set_ylabel("Residual (USD)")
+    axes[1].set_xlabel("")
+    axes[1].set_ylabel("Residual (USD)")
     axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=10, fontsize=9)
 
     plt.tight_layout()
@@ -348,7 +370,7 @@ def plot_segment_comparison(df_test: pd.DataFrame, out_dir: Path) -> None:
 # VIF
 # ---------------------------------------------------------------------------
 
-def compute_vif(X: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
+def compute_vif(X: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     """
     Compute Variance Inflation Factor for multicollinearity diagnosis.
     Only pass base numeric features — binary OHE dummies will inflate VIF
