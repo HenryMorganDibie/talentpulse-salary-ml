@@ -54,6 +54,10 @@ talentpulse-salary-ml/
 │   ├── metrics.json             # Model scorecard + bias diagnostics
 │   └── figures/                 # 10 PNG visualisations (auto-generated)
 │
+├── presentation/
+│   ├── TalentPulse_SalaryML_Henry_Dibie.pptx  # 12-slide assessment presentation deck
+│   └── README.md                              # Slide index and presenter notes guide
+│
 ├── models/                      # Serialised best model — git-ignored, created on run
 │
 └── tests/
@@ -152,6 +156,29 @@ All features are stateless transforms — no train-set statistics are applied, m
 | `fig8_qq_plots.png` | Q-Q plots: raw vs log-transformed salary |
 | `fig9_ridge_alpha.png` | Ridge CV error vs regularisation strength (alpha) |
 | `fig10_segment_comparison.png` | Premium (Senior/Lead) vs Standard role accuracy |
+
+---
+
+## Presentation
+
+The `presentation/` folder contains the 12-slide deck prepared for the 10Alytics assessment panel.
+
+| Slide | Section |
+|-------|---------|
+| 1 | Title |
+| 2 | Agenda |
+| 3 | Business Problem |
+| 4 | Data & EDA |
+| 5 | Feature Engineering & Design Decisions |
+| 6 | Model Training & Tuning |
+| 7 | Results & Model Comparison |
+| 8 | Bias Diagnostics |
+| 9 | Feature Importances & R² Explained |
+| 10 | Engineering Quality |
+| 11 | Limitations & Next Steps |
+| 12 | Summary |
+
+Each slide includes presenter notes with anticipated panel questions and prepared answers.
 
 ---
 
